@@ -9,7 +9,7 @@ count = 0
 total = 1
 completed = 0
 SELECTED_TREATMENTS = [9, 10, 16, 17, 18, 19, 20]
-ADDRESSEE_SAMPLE_THRESHOLD = 100
+ADDRESSEE_SAMPLE_THRESHOLD = 1000
 
 
 def get_audio(file, start_idx=None, end_idx=None):
@@ -35,8 +35,10 @@ def extract_feature(path, start_idx=None, end_idx=None):
 
 
 annots_df = pd.read_csv("res.csv")
-annots_df = annots_df[annots_df["Treatment ID"].isin(SELECTED_TREATMENTS)]
-annots_df = annots_df[annots_df["Addressee"] > 0]
+
+# ------ FILTERS ------
+annots_df = annots_df[annots_df["Treatment ID"].isin(SELECTED_TREATMENTS)]  # only colonies
+annots_df = annots_df[annots_df["Addressee"] > 0]  # filter out unknown and negatives
 # annots_df = annots_df.iloc[:20]
 # bats_ids = [218, 228, 233, 201, 203, 204, 205, 213, 225, 226]  # bats with over 100 samples
 
@@ -45,7 +47,10 @@ counts = annots_df.groupby(["Addressee"]).count().iloc[:, 0]
 bats_ids = list(counts[counts > ADDRESSEE_SAMPLE_THRESHOLD].index)
 annots_df = annots_df[annots_df["Addressee"].isin(bats_ids)]
 
+# ------ FILTERS ------
+
 annots_df = annots_df[["File name", "Emitter", "Addressee", "Start sample", "End sample", "Recording channel"]]
+print(len(annots_df))
 
 total = len(annots_df)
 dataset = annots_df.apply(
@@ -54,11 +59,16 @@ dataset = annots_df.apply(
 dataset["Recording channel"] = annots_df["Recording channel"]
 dataset["label"] = annots_df["Addressee"]
 dataset["Emitter"] = annots_df["Emitter"]
+
+# ------ NORMALIZE (PER RECORDING CH) ------
+
 means = dataset.groupby("Recording channel").mean()
 dataset = dataset.merge(means, on="Recording channel")
 
 for i in range(64):
     dataset[str(i)] = dataset[str(i) + "_x"] - dataset[str(i) + "_y"]
+
+# ------ NORMALIZE (PER RECORDING CH) ------
 
 dataset = dataset[[str(i) for i in range(64)] + ["Recording channel", "label_x", "Emitter_x"]]
 dataset.rename({'label_x': 'label'}, axis=1, inplace=True)
@@ -69,4 +79,4 @@ print(dataset.groupby(["Recording channel"]).mean())
 
 dataset[[str(i) for i in range(64)] + ["label"] + ["Emitter"]].to_csv("dataset.csv", index=False)
 dataset[[str(i) for i in range(64)] + ["label"] + ["Emitter"]].to_csv(
-    "-".join([str(i) for i in bats_ids]) + "-dataset.csv", index=False)
+    "-".join([str(i) for i in bats_ids]) + "-" + "TH" + str(ADDRESSEE_SAMPLE_THRESHOLD) + "-dataset.csv", index=False)
