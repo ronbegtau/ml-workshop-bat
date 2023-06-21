@@ -71,7 +71,7 @@ c = 1
 total = len(annots_df["File name"])
 import time
 st = time.time()
-for index, row in annots_df.loc[1600:, :].iterrows():
+for index, row in annots_df.iterrows():
     fp = row["File name"]
     a = row["Start sample"]
     b = row["End sample"]
