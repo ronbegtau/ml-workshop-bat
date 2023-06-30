@@ -1,17 +1,19 @@
+import time
+import sys
+import os
 import pandas as pd
 import numpy as np
 import matplotlib.pyplot as plt
-import matplotlib.style as ms
 import librosa
 import librosa.display
 from PIL import Image
-
 
 FILTER = True
 SELECTED_TREATMENTS = [9, 10, 16, 17, 18, 19, 20]
 ADDRESSEE_SAMPLE_THRESHOLD = 1000
 SAMPLE_RATE = 250000
-SIGNAL_TOTAL_LEN = 1 * SAMPLE_RATE
+WINDOW_SIZE = 1
+SIGNAL_TOTAL_LEN = WINDOW_SIZE * SAMPLE_RATE
 
 
 def get_audio(file, start_idx=None, end_idx=None):
@@ -67,20 +69,41 @@ if FILTER:
 annots_df = annots_df[["File name", "Emitter", "Addressee", "Start sample", "End sample", "Recording channel"]]
 annots_df.to_csv("dataset_dl.csv")
 
-c = 1
-total = len(annots_df["File name"])
-import time
+if len(sys.argv) < 3:
+    start_row = 0
+    end_row = len(annots_df)
+else:
+    start_row, end_row = int(sys.argv[1]), int(sys.argv[2])
+
+print(f"Running from {start_row} to {end_row}")
+
+c = 0
+total_changed = 0
+total = len(annots_df.iloc[start_row:end_row, :])
 st = time.time()
-for index, row in annots_df.iterrows():
+
+all_files = os.listdir("../data/spectograms-2/")
+
+for index, row in annots_df.iloc[start_row:end_row, :].iterrows():
     fp = row["File name"]
     a = row["Start sample"]
     b = row["End sample"]
-    if index % 10 == 0:
-        et = time.time()
-        print(f"{index}/{total}")
-        print(et-st)
-        st = et
-    spec = wav2melspec("../data/vocs/unzipped/" + fp, a, b)
-    spec.save("../data/spectograms/" + f"{fp[:-4]}-{a}-{b}" + ".png")
-    spec.close()
+    emitter = row["Emitter"]
+    addr = row["Addressee"]
+    old_file_name = f"{fp[:-4]}-{a}-{b}" + ".png"
+    old_file_path = "../data/spectograms-2/" + f"{fp[:-4]}-{a}-{b}" + ".png"
+    new_file_path = "../data/spectograms-2/" + f"{fp[:-4]}-{a}-{b}-{emitter}-{addr}" + ".png"
+    # spec = wav2melspec("../data/vocs/unzipped/" + fp, a, b)
+    # spec.save("../data/spectograms-1/" + f"{fp[:-4]}-{a}-{b}" + ".png")
+    # spec.close()
+    if old_file_name in all_files:
+        os.rename(old_file_path, new_file_path)
+        total_changed += 1
     c += 1
+    if c % 10 == 0 or c >= total:
+        et = time.time()
+        print(f"{c}/{total}")
+        print(et - st)
+        st = et
+
+print(f"Total file names changed: {total_changed}")

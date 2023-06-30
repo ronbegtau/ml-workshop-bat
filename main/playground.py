@@ -1,3 +1,5 @@
+import os
+import random
 import pandas as pd
 import librosa
 import numpy as np
@@ -24,20 +26,53 @@ def pad_or_trunc(signal, total_len=SIG_LEN):
     return signal
 
 
-fp = "121110052006193927.WAV"
-a1 = 1
-b1 = 700000
-b2 = 100000
+#
+# fp = "121110052006193927.WAV"
+# a1 = 1
+# b1 = 700000
+# b2 = 100000
+#
+# data1 = get_audio("../data/vocs/unzipped/" + fp, a1, b1)
+# data2 = get_audio("../data/vocs/unzipped/" + fp, a1, b2)
+#
+# pad1 = pad_or_trunc(data1[0])
+# print(len(pad1))
+# print(pad1)
+#
+# print("------------")
+#
+# pad2 = pad_or_trunc(data2[0])
+# print(len(pad2))
+# print(pad2)
 
-data1 = get_audio("../data/vocs/unzipped/" + fp, a1, b1)
-data2 = get_audio("../data/vocs/unzipped/" + fp, a1, b2)
+def get_all_classes(root):
+    all_files = os.listdir(root)
+    classes = set()
+    for fp in all_files:
+        addr = fp.split("-")[-1][:-4]
+        classes.add(addr)
+    classes = sorted(classes)
+    return classes
 
-pad1 = pad_or_trunc(data1[0])
-print(len(pad1))
-print(pad1)
 
-print("------------")
+def split_data_set():
+    root = "../data/spectograms-2"
+    all_files = [fp for fp in os.listdir(root) if fp.endswith(".png")]
+    random.shuffle(all_files)
+    test, train = all_files[:len(all_files) // 5], all_files[len(all_files) // 5:]
 
-pad2 = pad_or_trunc(data2[0])
-print(len(pad2))
-print(pad2)
+    print("start test")
+    for fp in test:
+        os.rename(os.path.join(root, fp), os.path.join(root, "test", fp))
+
+    print("start train")
+    for fp in train:
+        os.rename(os.path.join(root, fp), os.path.join(root, "train", fp))
+
+
+def main():
+    pass
+
+
+if __name__ == "__main__":
+    main()
