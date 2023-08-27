@@ -9,10 +9,13 @@ import matplotlib.pyplot as plt
 
 from vit_model import ViT, AudioDataset
 
-PATH = "vit-model.pt"
+# torch.set_default_tensor_type('torch.cuda.FloatTensor')
 
-checkpoint = torch.load(PATH)
+PATH = "./vit-ckpts/vit-model-1692860368-59.pt"
+
+checkpoint = torch.load(PATH, map_location="cpu")
 model = ViT(n_classes=checkpoint['num_of_classes'])
+model = nn.DataParallel(model)
 model.load_state_dict(checkpoint['model_state_dict'])
 
 optimizer = optim.Adam(model.parameters(), lr=1e-3)
@@ -21,7 +24,7 @@ optimizer.load_state_dict(checkpoint['optimizer_state_dict'])
 epoch = checkpoint['epoch']
 loss = checkpoint['loss']
 
-root = "../data/spectograms-1-test"
+root = "../data/spectograms-1/test"
 train_dataset = AudioDataset(root, transform=transforms.Compose([
     transforms.Resize((480, 480)),
     transforms.ToTensor(),
@@ -33,6 +36,7 @@ device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
 print(device)
 
 model = model.to(device)
+model.cuda()
 print("num of classes", checkpoint["num_of_classes"])
 
 y_true = []
@@ -55,3 +59,11 @@ cm = confusion_matrix(y_true, y_pred)
 disp = ConfusionMatrixDisplay(confusion_matrix=cm, display_labels=checkpoint["classes"])
 disp.plot()
 plt.show()
+
+c = 0
+for i in range(len(y_true)):
+    if y_pred[i] == y_true[i]:
+        c += 1
+
+print(c/len(y_true))
+

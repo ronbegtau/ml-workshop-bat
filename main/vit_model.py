@@ -1,6 +1,7 @@
 import os
+import time
 
-import matplotlib.pyplot as plt
+# import matplotlib.pyplot as plt
 import tqdm as tqdm
 from PIL import Image
 
@@ -8,13 +9,55 @@ import torch
 import torch.nn.functional as F
 from torch import Tensor, nn, optim
 from torch.optim.lr_scheduler import ReduceLROnPlateau
-from torchsummary import summary
+# from torchsummary import summary
 from torchvision import transforms
 from torch.utils.data import Dataset, DataLoader
 
-from einops import rearrange, reduce, repeat
+from einops import rearrange, repeat  # , reduce
 from einops.layers.torch import Rearrange, Reduce
 
+# SET SEEDS
+import random
+import numpy as np
+import sys
+
+EMITTER_ONE_HOT_MAP = {
+    '111': [1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+    '120': [0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+    '201': [0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+    '202': [0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+    '203': [0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+    '204': [0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+    '205': [0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+    '207': [0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+    '208': [0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+    '210': [0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+    '211': [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+    '213': [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+    '214': [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+    '215': [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+    '216': [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+    '218': [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+    '220': [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+    '221': [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0],
+    '222': [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0],
+    '223': [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0],
+    '225': [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0],
+    '226': [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0],
+    '228': [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0],
+    '230': [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0],
+    '231': [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0],
+    '233': [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1]
+}
+
+if len(sys.argv) > 1:
+    print("SET SEED")
+    torch.manual_seed(0)
+    random.seed(0)
+    np.random.seed(0)
+
+
+# SET SEEDS
 
 def get_all_classes(root):
     all_files = os.listdir(root)
@@ -33,19 +76,24 @@ class AudioDataset(Dataset):
         self.classes = get_all_classes(root)
         self.class_to_idx = {c: i for i, c in enumerate(self.classes)}
         self.samples = []
+        self.emitter_map = dict(EMITTER_ONE_HOT_MAP)
         for fp in os.listdir(root):
-            c = fp.split("-")[-1][:-4]
-            self.samples.append((os.path.join(root, fp), self.class_to_idx[c]))
+            file_id, start_frame, end_frame, emitter, addressee = fp.split("-")
+            # skip unknown emitter
+            if emitter == "0":
+                continue
+            addressee = addressee[:-4]
+            self.samples.append((os.path.join(root, fp), torch.tensor(self.emitter_map[emitter]), self.class_to_idx[addressee]))
 
     def __len__(self):
         return len(self.samples)
 
     def __getitem__(self, idx):
-        fp, target = self.samples[idx]
+        fp, emitter, addressee = self.samples[idx]
         img = Image.open(fp)
         if self.transform:
             img = self.transform(img)
-        return img, target
+        return img, emitter, addressee
 
 
 class PatchEmbedding(nn.Module):
@@ -146,56 +194,109 @@ class TransformerEncoder(nn.Sequential):
         super().__init__(*[TransformerEncoderBlock(**kwargs) for _ in range(depth)])
 
 
-class ViT(nn.Sequential):
+class ViT(torch.nn.Module):
     def __init__(self,
+                 emitter_one_hot_size: int = len(EMITTER_ONE_HOT_MAP),
                  in_channels: int = 3,
                  patch_size: int = 16,
                  emb_size: int = 768,
                  img_size: int = 480,
-                 depth: int = 12,
+                 depth: int = 1,
                  n_classes: int = 1000,
                  **kwargs):
-        super().__init__(
-            PatchEmbedding(in_channels, patch_size, emb_size, img_size),
-            TransformerEncoder(depth, emb_size=emb_size, **kwargs),
-            ClassificationHead(emb_size, n_classes)
-        )
+        super(ViT, self).__init__()
+        self.patch_embedding = PatchEmbedding(in_channels, patch_size, emb_size, img_size)
+        self.transformer_encoder = TransformerEncoder(depth, emb_size=emb_size, **kwargs)
+        self.classification_head = ClassificationHead(emb_size, emitter_one_hot_size, n_classes)
+
+    def forward(self, x, emitter):
+        x = self.patch_embedding(x)
+        x = self.transformer_encoder(x)
+        x = self.classification_head(x, emitter)
+        return x
 
 
-class ClassificationHead(nn.Sequential):
-    def __init__(self, emb_size: int = 768, n_classes: int = 1000):
-        super().__init__(
-            Reduce('b n e -> b e', reduction='mean'),
-            nn.LayerNorm(emb_size),
-            nn.Linear(emb_size, n_classes))
+class ClassificationHead(nn.Module):
+    def __init__(self, emb_size: int = 768, emitter_one_hot_size: int = len(EMITTER_ONE_HOT_MAP), n_classes: int = 1000):
+        super(ClassificationHead, self).__init__()
+        self.reduce = Reduce('b n e -> b e', reduction='mean')
+        self.layer_norm = nn.LayerNorm(emb_size)
+        self.output = nn.Linear(emb_size + emitter_one_hot_size, n_classes)
 
+    def forward(self, x, emitter):
+        x = self.reduce(x)
+        x = self.layer_norm(x)
+        x = self.output(torch.cat((x, emitter), dim=1))
+        return x
+
+
+def save_model(path, tid, model, opt, epoch, loss, acc, classes):
+    # Additional information
+    torch.save({
+        'epoch': epoch,
+        'model_state_dict': model.state_dict(),
+        'optimizer_state_dict': opt.state_dict(),
+        'loss': loss,
+        'accuracy': acc,
+        'num_of_classes': len(classes),
+        'classes': classes,
+        'tid': tid
+    }, path)
+
+
+PATH = "./vit-ckpts/vit-model-{}-{}.pt"
 
 if __name__ == "__main__":
-    root = "../data/spectograms-1-test"
+    tid = int(time.time())
+    root = "../data/spectograms-1/train"
+    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+    print("root path to dataset:", root)
+    print("using device:", device)
+    # device = torch.device("cpu")
+
     train_dataset = AudioDataset(root, transform=transforms.Compose([
         transforms.Resize((480, 480)),
         transforms.ToTensor(),
         transforms.Normalize((0.5, 0.5, 0.5), (0.5, 0.5, 0.5))
     ]))
 
-    # train
-    vit = ViT(
-        n_classes=len(train_dataset.classes)
-    )
+    curr_epoch = -1
 
-    device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
-    # device = torch.device("cpu")
+    if len(sys.argv) < 2:
+        vit = ViT(n_classes=len(train_dataset.classes))
+        vit = nn.DataParallel(vit)
+        vit.to(device)
+        optimizer = optim.Adam(vit.parameters(), lr=1e-3)
 
-    vit.to(device)
+    else:
+        # load checkpoint
+        ckpt_path = sys.argv[1]
+        print("loading checkpoint:", ckpt_path)
+
+        checkpoint = torch.load(ckpt_path, map_location="cpu")
+
+        tid = checkpoint['tid']
+
+        vit = ViT(n_classes=checkpoint['num_of_classes'])
+        vit = nn.DataParallel(vit)
+
+        vit.load_state_dict(checkpoint['model_state_dict'])
+        vit.to(device)
+
+        optimizer = optim.Adam(vit.parameters(), lr=1e-3)
+        optimizer.load_state_dict(checkpoint['optimizer_state_dict'])
+
+        curr_epoch = checkpoint['epoch']
 
     # train
     train_loader = DataLoader(train_dataset, batch_size=4, shuffle=True)
-    optimizer = optim.Adam(vit.parameters(), lr=1e-3)
+
     scheduler = ReduceLROnPlateau(optimizer, 'max', factor=0.3, patience=3, verbose=True)
     criterion = nn.CrossEntropyLoss()
-    num_epochs = 1
+    num_epochs = 30
 
-    for epoch in range(num_epochs):
+    print("start training, tid is", tid)
+    for epoch in range(curr_epoch + 1, num_epochs):
         print('Epoch {}/{}'.format(epoch, num_epochs - 1))
         print('-' * 10)
 
@@ -204,14 +305,15 @@ if __name__ == "__main__":
         running_loss = 0.0
         running_corrects = 0
 
-        for inputs, labels in tqdm.tqdm(train_loader):
+        for inputs, emitters, labels in tqdm.tqdm(train_loader):
             inputs = inputs.to(device)
+            emitter = emitters.to(device)
             labels = labels.to(device)
 
             optimizer.zero_grad()
 
             with torch.set_grad_enabled(True):
-                outputs = vit(inputs)
+                outputs = vit(inputs, emitters)
                 loss = criterion(outputs, labels)
 
                 _, preds = torch.max(outputs, 1)
@@ -226,15 +328,4 @@ if __name__ == "__main__":
         scheduler.step(epoch_acc)
 
         print('Loss: {:.4f} Acc: {:.4f}'.format(epoch_loss, epoch_acc))
-
-    # Additional information
-    PATH = "vit-model.pt"
-    torch.save({
-        'epoch': epoch,
-        'model_state_dict': vit.state_dict(),
-        'optimizer_state_dict': optimizer.state_dict(),
-        'loss': epoch_loss,
-        'accuracy': epoch_acc,
-        'num_of_classes': len(train_dataset.classes),
-        'classes': train_dataset.classes
-    }, PATH)
+        save_model(PATH.format(tid, epoch), tid, vit, optimizer, epoch, epoch_loss, epoch_acc, train_dataset.classes)
