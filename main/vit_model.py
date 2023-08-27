@@ -221,12 +221,14 @@ class ClassificationHead(nn.Module):
         super(ClassificationHead, self).__init__()
         self.reduce = Reduce('b n e -> b e', reduction='mean')
         self.layer_norm = nn.LayerNorm(emb_size)
+        self.hidden = nn.Linear(emb_size + emitter_one_hot_size, emb_size + emitter_one_hot_size)
         self.output = nn.Linear(emb_size + emitter_one_hot_size, n_classes)
 
     def forward(self, x, emitter):
         x = self.reduce(x)
         x = self.layer_norm(x)
-        x = self.output(torch.cat((x, emitter), dim=1))
+        x = self.hidden(torch.cat((x, emitter), dim=1))
+        x = self.output(x)
         return x
 
 
