@@ -1,7 +1,3 @@
-import random
-import time
-import sys
-import os
 import pandas as pd
 import numpy as np
 import matplotlib.pyplot as plt
@@ -9,6 +5,9 @@ import librosa
 import librosa.display
 from PIL import Image
 
+FILTER = True
+SELECTED_TREATMENTS = [9, 10, 16, 17, 18, 19, 20]
+ADDRESSEE_SAMPLE_THRESHOLD = 1000
 SAMPLE_RATE = 250000
 WINDOW_SIZE = 1
 SIGNAL_TOTAL_LEN = WINDOW_SIZE * SAMPLE_RATE
@@ -48,42 +47,20 @@ def wav2melspec(fp, start_idx=None, end_idx=None):
     return img
 
 
-annots_df = pd.read_csv("dataset_dl.csv")
+annots_df = pd.read_csv("res.csv")
 
-if len(sys.argv) < 3:
-    start_row = 0
-    end_row = len(annots_df)
-else:
-    start_row, end_row = int(sys.argv[1]), int(sys.argv[2])
+# ------ FILTERS ------
+if FILTER:
+    annots_df = annots_df[annots_df["Treatment ID"].isin(SELECTED_TREATMENTS)]  # only colonies
+    annots_df = annots_df[annots_df["Addressee"] > 0]  # filter out unknown and negatives addressees
+    annots_df = annots_df[annots_df["Emitter"] > 0]  # filter out unknown and negatives emitters
 
-print(f"Running from {start_row} to {end_row}")
+    # addressee sample count threshold
+    counts = annots_df.groupby(["Addressee"]).count().iloc[:, 0]
+    bats_ids = list(counts[counts > ADDRESSEE_SAMPLE_THRESHOLD].index)
+    annots_df = annots_df[annots_df["Addressee"].isin(bats_ids)]
 
-c = 0
-total = len(annots_df.iloc[start_row:end_row, :])
-st = time.time()
-spec_output_dir = "../data/spectograms-1"
-random.seed(0)
+# ------ FILTERS ------
 
-for index, row in annots_df.iloc[start_row:end_row, :].iterrows():
-    fp = row["File name"]
-    a = row["Start sample"]
-    b = row["End sample"]
-    emitter = row["Emitter"]
-    addr = row["Addressee"]
-    r = random.random()
-    if r < 0.8:
-        target_folder = "train"
-    else:
-        target_folder = "test"
-    new_file_path = os.path.join(spec_output_dir, target_folder, f"{fp[:-4]}-{a}-{b}-{emitter}-{addr}" + ".png")
-    spec = wav2melspec("../data/vocs/unzipped/" + fp, a, b)
-    spec.save(new_file_path)
-    spec.close()
-    c += 1
-    if c % 10 == 0 or c >= total:
-        et = time.time()
-        print(f"{c}/{total} ({start_row} - {end_row})")
-        print(et - st)
-        st = et
-
-print("done")
+annots_df = annots_df[["File name", "Emitter", "Addressee", "Start sample", "End sample", "Recording channel"]]
+annots_df.to_csv("dataset_dl.csv")

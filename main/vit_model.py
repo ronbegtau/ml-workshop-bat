@@ -70,18 +70,18 @@ def get_all_classes(root):
 
 
 class AudioDataset(Dataset):
-    def __init__(self, root, transform=None):
+    def __init__(self, root,  classes=None, transform=None):
         self.root = root
         self.transform = transform
-        self.classes = get_all_classes(root)
+        if classes is None:
+            self.classes = get_all_classes(root)
+        else:
+            self.classes = classes
         self.class_to_idx = {c: i for i, c in enumerate(self.classes)}
         self.samples = []
         self.emitter_map = dict(EMITTER_ONE_HOT_MAP)
         for fp in os.listdir(root):
             file_id, start_frame, end_frame, emitter, addressee = fp.split("-")
-            # skip unknown emitter
-            if emitter == "0":
-                continue
             addressee = addressee[:-4]
             self.samples.append((os.path.join(root, fp), torch.tensor(self.emitter_map[emitter]), self.class_to_idx[addressee]))
 
@@ -295,7 +295,7 @@ if __name__ == "__main__":
 
     scheduler = ReduceLROnPlateau(optimizer, 'max', factor=0.3, patience=3, verbose=True)
     criterion = nn.CrossEntropyLoss()
-    num_epochs = 30
+    num_epochs = 1
 
     print("start training, tid is", tid)
     for epoch in range(curr_epoch + 1, num_epochs):

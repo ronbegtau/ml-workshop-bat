@@ -71,14 +71,14 @@ def split_data_set():
 
 
 def main():
-    root = "../data/spectograms-1/test"
+    root = "../data/spectograms-1/train"
     all_files = os.listdir(root)
     c = 0
-    emitters = set()
+    counter1 = set()
     for fp in all_files:
-        file_id, start_frame, end_frame, emitter, addressee = fp.split("-")
-        emitters.add(emitter)
-    print(sorted(list(emitters)))
+        file_id, start_frame, end_frame, emitter, addr = fp.split("-")
+        addr = addr[:-4]
+        counter1.add(emitter)
 
 if __name__ == "__main__":
     main()
