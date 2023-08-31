@@ -243,19 +243,19 @@ class ClassificationHead(nn.Module):
         return x
 
 
-def save_model(path, tid, model: ViT, opt, epoch, loss, acc, classes):
+def save_model(path, tid, model, model_metadata: ViT, opt, epoch, loss, acc, classes):
     # Additional information
     torch.save({
+        'tid': tid,
         'epoch': epoch,
         'model_state_dict': model.state_dict(),
         'optimizer_state_dict': opt.state_dict(),
         'loss': loss,
         'accuracy': acc,
-        'num_of_classes': len(classes),
         'classes': classes,
-        'tid': tid,
-        'depth': model.depth,
-        'use_emitter': model.use_emitter
+        'num_of_classes': len(classes),
+        'depth': model_metadata.depth,
+        'use_emitter': model_metadata.use_emitter
     }, path)
 
 
@@ -264,9 +264,9 @@ PATH = "./vit-ckpts/vit-model-{}-{}.pt"
 if __name__ == "__main__":
     depth = 1
     use_emitter = False
-    num_epochs = 30
+    num_epochs = 2
     batch_size = 4
-    root = "../data/spectograms-1/train"
+    root = "../data/spectograms-1-test-small/"
 
     tid = int(time.time())
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
@@ -283,8 +283,8 @@ if __name__ == "__main__":
     curr_epoch = -1
 
     if len(sys.argv) < 2:
-        vit = ViT(depth=depth, use_emitter=use_emitter, n_classes=len(train_dataset.classes))
-        vit = nn.DataParallel(vit)
+        vit_metadata = ViT(depth=depth, use_emitter=use_emitter, n_classes=len(train_dataset.classes))
+        vit = nn.DataParallel(vit_metadata)
         vit.to(device)
         optimizer = optim.Adam(vit.parameters(), lr=1e-3)
 
@@ -347,4 +347,4 @@ if __name__ == "__main__":
         scheduler.step(epoch_acc)
 
         print('Loss: {:.4f} Acc: {:.4f}'.format(epoch_loss, epoch_acc))
-        save_model(PATH.format(tid, epoch), tid, vit, optimizer, epoch, epoch_loss, epoch_acc, train_dataset.classes)
+        save_model(PATH.format(tid, epoch), tid, vit, vit_metadata, optimizer, epoch, epoch_loss, epoch_acc, train_dataset.classes)
