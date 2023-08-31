@@ -264,9 +264,9 @@ PATH = "./vit-ckpts/vit-model-{}-{}.pt"
 if __name__ == "__main__":
     depth = 1
     use_emitter = False
-    num_epochs = 2
+    num_epochs = 30
     batch_size = 4
-    root = "../data/spectograms-1-test-small/"
+    root = "../data/spectograms-1/train"
 
     tid = int(time.time())
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
