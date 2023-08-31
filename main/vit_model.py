@@ -70,7 +70,7 @@ def get_all_classes(root):
 
 
 class AudioDataset(Dataset):
-    def __init__(self, root,  classes=None, transform=None):
+    def __init__(self, root, classes=None, transform=None):
         self.root = root
         self.transform = transform
         if classes is None:
@@ -83,7 +83,8 @@ class AudioDataset(Dataset):
         for fp in os.listdir(root):
             file_id, start_frame, end_frame, emitter, addressee = fp.split("-")
             addressee = addressee[:-4]
-            self.samples.append((os.path.join(root, fp), torch.tensor(self.emitter_map[emitter]), self.class_to_idx[addressee]))
+            self.samples.append(
+                (os.path.join(root, fp), torch.tensor(self.emitter_map[emitter]), self.class_to_idx[addressee]))
 
     def __len__(self):
         return len(self.samples)
@@ -220,7 +221,8 @@ class ViT(torch.nn.Module):
 
 
 class ClassificationHead(nn.Module):
-    def __init__(self, emb_size: int = 768, emitter_one_hot_size: int = len(EMITTER_ONE_HOT_MAP), use_emitter: bool = False, n_classes: int = 1000):
+    def __init__(self, emb_size: int = 768, emitter_one_hot_size: int = len(EMITTER_ONE_HOT_MAP),
+                 use_emitter: bool = False, n_classes: int = 1000):
         super(ClassificationHead, self).__init__()
         self.use_emitter = use_emitter
         linear_input_size = emb_size
@@ -260,8 +262,13 @@ def save_model(path, tid, model: ViT, opt, epoch, loss, acc, classes):
 PATH = "./vit-ckpts/vit-model-{}-{}.pt"
 
 if __name__ == "__main__":
-    tid = int(time.time())
+    depth = 1
+    use_emitter = False
+    num_epochs = 30
+    batch_size = 4
     root = "../data/spectograms-1/train"
+
+    tid = int(time.time())
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     print("root path to dataset:", root)
     print("using device:", device)
@@ -276,7 +283,7 @@ if __name__ == "__main__":
     curr_epoch = -1
 
     if len(sys.argv) < 2:
-        vit = ViT(use_emitter=True, n_classes=len(train_dataset.classes))
+        vit = ViT(depth=depth, use_emitter=use_emitter, n_classes=len(train_dataset.classes))
         vit = nn.DataParallel(vit)
         vit.to(device)
         optimizer = optim.Adam(vit.parameters(), lr=1e-3)
@@ -302,11 +309,10 @@ if __name__ == "__main__":
         curr_epoch = checkpoint['epoch']
 
     # train
-    train_loader = DataLoader(train_dataset, batch_size=4, shuffle=True)
+    train_loader = DataLoader(train_dataset, batch_size=batch_size, shuffle=True)
 
     scheduler = ReduceLROnPlateau(optimizer, 'max', factor=0.3, patience=3, verbose=True)
     criterion = nn.CrossEntropyLoss()
-    num_epochs = 1
 
     print("start training, tid is", tid)
     for epoch in range(curr_epoch + 1, num_epochs):
