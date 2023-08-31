@@ -205,8 +205,9 @@ class ViT(torch.nn.Module):
                  n_classes: int = 1000,
                  **kwargs):
         super(ViT, self).__init__()
+        self.depth = depth
         self.patch_embedding = PatchEmbedding(in_channels, patch_size, emb_size, img_size)
-        self.transformer_encoder = TransformerEncoder(depth, emb_size=emb_size, **kwargs)
+        self.transformer_encoder = TransformerEncoder(self.depth, emb_size=emb_size, **kwargs)
         self.classification_head = ClassificationHead(emb_size, emitter_one_hot_size, n_classes)
 
     def forward(self, x, emitter):
@@ -232,7 +233,7 @@ class ClassificationHead(nn.Module):
         return x
 
 
-def save_model(path, tid, model, opt, epoch, loss, acc, classes):
+def save_model(path, tid, model: ViT, opt, epoch, loss, acc, classes):
     # Additional information
     torch.save({
         'epoch': epoch,
@@ -242,7 +243,8 @@ def save_model(path, tid, model, opt, epoch, loss, acc, classes):
         'accuracy': acc,
         'num_of_classes': len(classes),
         'classes': classes,
-        'tid': tid
+        'tid': tid,
+        'depth': model.depth
     }, path)
 
 
