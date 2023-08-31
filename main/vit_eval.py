@@ -10,11 +10,16 @@ import matplotlib.pyplot as plt
 from vit_model import ViT, AudioDataset
 
 # torch.set_default_tensor_type('torch.cuda.FloatTensor')
-
-PATH = "./vit-ckpts/vit-model-1689780787-29.pt"
+DEFAULT_DEPTH = 2
+DEFAULT_USE_EMITTER = False
+PATH = "./vit-ckpts/vit-model-1693208069-59.pt"
 
 checkpoint = torch.load(PATH, map_location="cpu")
-model = ViT(n_classes=checkpoint['num_of_classes'])
+depth = checkpoint.get("depth", DEFAULT_DEPTH)
+use_emitter = checkpoint.get("use_emitter", DEFAULT_USE_EMITTER)
+
+print("depth is", depth)
+model = ViT(depth=depth, use_emitter=use_emitter, n_classes=checkpoint['num_of_classes'])
 model = nn.DataParallel(model)
 model.load_state_dict(checkpoint['model_state_dict'])
 

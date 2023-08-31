@@ -203,12 +203,14 @@ class ViT(torch.nn.Module):
                  img_size: int = 480,
                  depth: int = 1,
                  n_classes: int = 1000,
+                 use_emitter: bool = False,
                  **kwargs):
         super(ViT, self).__init__()
         self.depth = depth
+        self.use_emitter = use_emitter
         self.patch_embedding = PatchEmbedding(in_channels, patch_size, emb_size, img_size)
         self.transformer_encoder = TransformerEncoder(self.depth, emb_size=emb_size, **kwargs)
-        self.classification_head = ClassificationHead(emb_size, emitter_one_hot_size, n_classes)
+        self.classification_head = ClassificationHead(emb_size, emitter_one_hot_size, self.use_emitter, n_classes)
 
     def forward(self, x, emitter):
         x = self.patch_embedding(x)
@@ -218,17 +220,23 @@ class ViT(torch.nn.Module):
 
 
 class ClassificationHead(nn.Module):
-    def __init__(self, emb_size: int = 768, emitter_one_hot_size: int = len(EMITTER_ONE_HOT_MAP), n_classes: int = 1000):
+    def __init__(self, emb_size: int = 768, emitter_one_hot_size: int = len(EMITTER_ONE_HOT_MAP), use_emitter: bool = False, n_classes: int = 1000):
         super(ClassificationHead, self).__init__()
+        self.use_emitter = use_emitter
+        linear_input_size = emb_size
+
         self.reduce = Reduce('b n e -> b e', reduction='mean')
         self.layer_norm = nn.LayerNorm(emb_size)
         self.hidden = nn.Linear(emb_size + emitter_one_hot_size, emb_size + emitter_one_hot_size)
-        self.output = nn.Linear(emb_size + emitter_one_hot_size, n_classes)
+        if use_emitter:
+            linear_input_size += emitter_one_hot_size
+        self.output = nn.Linear(linear_input_size, n_classes)
 
     def forward(self, x, emitter):
         x = self.reduce(x)
         x = self.layer_norm(x)
-        x = self.hidden(torch.cat((x, emitter), dim=1))
+        if self.use_emitter:
+            x = self.hidden(torch.cat((x, emitter), dim=1))
         x = self.output(x)
         return x
 
@@ -244,7 +252,8 @@ def save_model(path, tid, model: ViT, opt, epoch, loss, acc, classes):
         'num_of_classes': len(classes),
         'classes': classes,
         'tid': tid,
-        'depth': model.depth
+        'depth': model.depth,
+        'use_emitter': model.use_emitter
     }, path)
 
 
@@ -267,7 +276,7 @@ if __name__ == "__main__":
     curr_epoch = -1
 
     if len(sys.argv) < 2:
-        vit = ViT(n_classes=len(train_dataset.classes))
+        vit = ViT(use_emitter=True, n_classes=len(train_dataset.classes))
         vit = nn.DataParallel(vit)
         vit.to(device)
         optimizer = optim.Adam(vit.parameters(), lr=1e-3)
