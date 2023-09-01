@@ -13,8 +13,7 @@ SAMPLE_RATE = 250000
 WINDOW_SIZE = 1
 SIGNAL_TOTAL_LEN = WINDOW_SIZE * SAMPLE_RATE
 DATASET_PATH = "dataset.csv"
-# SPEC_OUTPUT_DIR = "../data/spectograms-1/"
-SPEC_OUTPUT_DIR = "../data/TEST/"
+SPEC_OUTPUT_DIR = "../data/spectograms-1/"
 VOCS_DIR = "../data/vocs/unzipped/"
 
 
@@ -67,6 +66,14 @@ total = len(annots_df.iloc[start_row:end_row, :])
 st = time.time()
 
 random.seed(0)
+
+if not os.path.exists(SPEC_OUTPUT_DIR):
+    os.mkdir(SPEC_OUTPUT_DIR)
+if not os.path.exists(os.path.join(SPEC_OUTPUT_DIR, "test")):
+    os.mkdir(os.path.join(SPEC_OUTPUT_DIR, "test"))
+if not os.path.exists(os.path.join(SPEC_OUTPUT_DIR, "train")):
+    os.mkdir(os.path.join(SPEC_OUTPUT_DIR, "train"))
+
 
 for index, row in annots_df.iloc[start_row:end_row, :].iterrows():
     fp = row["File name"]
