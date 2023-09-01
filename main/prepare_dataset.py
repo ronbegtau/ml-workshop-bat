@@ -1,9 +1,7 @@
 import pandas as pd
-import numpy as np
-import matplotlib.pyplot as plt
-import matplotlib.style as ms
-import librosa
-import librosa.display
+
+ANNOT_PATH = "Annotations.csv"
+FILE_INFO_PATH = "FileInfo.csv"
 
 count = 0
 total = 1
@@ -12,71 +10,52 @@ SELECTED_TREATMENTS = [9, 10, 16, 17, 18, 19, 20]
 ADDRESSEE_SAMPLE_THRESHOLD = 1000
 
 
-def get_audio(file, start_idx=None, end_idx=None):
-    signal, rate = librosa.load(file, sr=250000)
-    if start_idx is None or end_idx is None:
-        return signal, rate
-    return signal[start_idx:end_idx], rate
+def agg_cols(columns):
+    result = []
+    for column in columns:
+        val = str(column)
+        if val != "nan":
+            result.append(int(column))
+
+    return result
 
 
-def extract_feature(path, start_idx=None, end_idx=None):
-    global count, total, completed
-    count += 1
-    if int(100 * (count / total)) > completed:
-        completed = int(100 * (count / total))
-        print(f"{completed}%")
-
-    # try:
-    sig, rate = get_audio(path, start_idx, end_idx)
-    mfcc = librosa.feature.mfcc(y=sig, sr=rate, n_mfcc=64, n_mels=64)
-    # except:
-    # return pd.Series([0]*64)
-    return pd.Series(np.mean(mfcc, axis=1))
+def intersect(columns):
+    return list(filter(lambda x: columns["Start sample"] <= x <= columns["End sample"], columns["segments"]))
 
 
-annots_df = pd.read_csv("res.csv")
+# ------ JOIN ------
+annots_df = pd.read_csv(ANNOT_PATH)
+file_info_df = pd.read_csv(FILE_INFO_PATH, names=[i for i in range(332)], low_memory=False)
+
+file_info_df = file_info_df.loc[1:]
+segments = file_info_df.iloc[:, 6:].apply(agg_cols, axis=1)
+new_df = file_info_df.iloc[:, :6]
+new_df["segments"] = segments
+new_df[0] = new_df[0].astype('int64')
+joined = new_df.merge(annots_df, left_on=0, right_on="FileID")
+filtered_segments = joined.apply(intersect, axis=1)
+joined["filtered_segments"] = filtered_segments
+# ------ JOIN ------
+
+
+annots_df = joined
+annots_df.rename({1: "Treatment ID", 2: "File name", 4: "Recording channel"}, axis=1, inplace=True)
+annots_df["Treatment ID"] = annots_df["Treatment ID"].astype("int32")
+annots_df["Addressee"] = annots_df["Addressee"].astype("int32")
+annots_df["Emitter"] = annots_df["Emitter"].astype("int32")
 
 # ------ FILTERS ------
 annots_df = annots_df[annots_df["Treatment ID"].isin(SELECTED_TREATMENTS)]  # only colonies
-annots_df = annots_df[annots_df["Addressee"] > 0]  # filter out unknown and negatives
-# annots_df = annots_df.iloc[:20]
-# bats_ids = [218, 228, 233, 201, 203, 204, 205, 213, 225, 226]  # bats with over 100 samples
+annots_df = annots_df[annots_df["Addressee"] > 0]  # filter out unknown addressees
+annots_df = annots_df[annots_df["Emitter"] > 0]  # filter out unknown emitters
 
-# bats with over 100 samples
+# addressee sample count threshold
 counts = annots_df.groupby(["Addressee"]).count().iloc[:, 0]
 bats_ids = list(counts[counts > ADDRESSEE_SAMPLE_THRESHOLD].index)
 annots_df = annots_df[annots_df["Addressee"].isin(bats_ids)]
-
 # ------ FILTERS ------
 
+
 annots_df = annots_df[["File name", "Emitter", "Addressee", "Start sample", "End sample", "Recording channel"]]
-print(len(annots_df))
-
-total = len(annots_df)
-dataset = annots_df.apply(
-    lambda x: extract_feature("../data/vocs/unzipped/" + x["File name"], x["Start sample"], x["End sample"]), axis=1)
-
-dataset["Recording channel"] = annots_df["Recording channel"]
-dataset["label"] = annots_df["Addressee"]
-dataset["Emitter"] = annots_df["Emitter"]
-
-# ------ NORMALIZE (PER RECORDING CH) ------
-
-means = dataset.groupby("Recording channel").mean()
-dataset = dataset.merge(means, on="Recording channel")
-
-for i in range(64):
-    dataset[str(i)] = dataset[str(i) + "_x"] - dataset[str(i) + "_y"]
-
-# ------ NORMALIZE (PER RECORDING CH) ------
-
-dataset = dataset[[str(i) for i in range(64)] + ["Recording channel", "label_x", "Emitter_x"]]
-dataset.rename({'label_x': 'label'}, axis=1, inplace=True)
-dataset.rename({'Emitter_x': 'Emitter'}, axis=1, inplace=True)
-
-print(dataset)
-print(dataset.groupby(["Recording channel"]).mean())
-
-dataset[[str(i) for i in range(64)] + ["label"] + ["Emitter"]].to_csv("dataset.csv", index=False)
-dataset[[str(i) for i in range(64)] + ["label"] + ["Emitter"]].to_csv(
-    "-".join([str(i) for i in bats_ids]) + "-" + "TH" + str(ADDRESSEE_SAMPLE_THRESHOLD) + "-dataset.csv", index=False)
+annots_df.to_csv("dataset.csv", index=False)

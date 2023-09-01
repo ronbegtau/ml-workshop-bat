@@ -12,6 +12,10 @@ from PIL import Image
 SAMPLE_RATE = 250000
 WINDOW_SIZE = 1
 SIGNAL_TOTAL_LEN = WINDOW_SIZE * SAMPLE_RATE
+DATASET_PATH = "dataset.csv"
+# SPEC_OUTPUT_DIR = "../data/spectograms-1/"
+SPEC_OUTPUT_DIR = "../data/TEST/"
+VOCS_DIR = "../data/vocs/unzipped/"
 
 
 def get_audio(file, start_idx=None, end_idx=None):
@@ -48,7 +52,7 @@ def wav2melspec(fp, start_idx=None, end_idx=None):
     return img
 
 
-annots_df = pd.read_csv("dataset_dl.csv")
+annots_df = pd.read_csv(DATASET_PATH)
 
 if len(sys.argv) < 3:
     start_row = 0
@@ -61,7 +65,7 @@ print(f"Running from {start_row} to {end_row}")
 c = 0
 total = len(annots_df.iloc[start_row:end_row, :])
 st = time.time()
-spec_output_dir = "../data/spectograms-1"
+
 random.seed(0)
 
 for index, row in annots_df.iloc[start_row:end_row, :].iterrows():
@@ -71,12 +75,14 @@ for index, row in annots_df.iloc[start_row:end_row, :].iterrows():
     emitter = row["Emitter"]
     addr = row["Addressee"]
     r = random.random()
+
+    # split train-test
     if r < 0.8:
         target_folder = "train"
     else:
         target_folder = "test"
-    new_file_path = os.path.join(spec_output_dir, target_folder, f"{fp[:-4]}-{a}-{b}-{emitter}-{addr}" + ".png")
-    spec = wav2melspec("../data/vocs/unzipped/" + fp, a, b)
+    new_file_path = os.path.join(SPEC_OUTPUT_DIR, target_folder, f"{fp[:-4]}-{a}-{b}-{emitter}-{addr}" + ".png")
+    spec = wav2melspec(VOCS_DIR + fp, a, b)
     spec.save(new_file_path)
     spec.close()
     c += 1
