@@ -2,22 +2,29 @@ import torch
 import torch.nn as nn
 import torch.optim as optim
 import tqdm
-from sklearn.metrics import confusion_matrix, ConfusionMatrixDisplay
+from sklearn.metrics import confusion_matrix, ConfusionMatrixDisplay, classification_report
 from torch.utils.data import DataLoader
 from torchvision import transforms
 import matplotlib.pyplot as plt
+import os
 
 from vit_model import ViT, AudioDataset
 
 # torch.set_default_tensor_type('torch.cuda.FloatTensor')
-DEFAULT_DEPTH = 2
+EVAL_OUPUT_PATH = "eval/"
+DEFAULT_DEPTH = 1
 DEFAULT_USE_EMITTER = False
-PATH = "./vit-ckpts/vit-model-1693208069-59.pt"
+PATH = "./vit-ckpts/vit-model-1693751634-29.pt"
+
+if not os.path.exists(EVAL_OUPUT_PATH):
+    os.mkdir(EVAL_OUPUT_PATH)
 
 checkpoint = torch.load(PATH, map_location="cpu")
 depth = checkpoint.get("depth", DEFAULT_DEPTH)
 use_emitter = checkpoint.get("use_emitter", DEFAULT_USE_EMITTER)
+train_acc = checkpoint.get("accuracy", None)
 
+print("train acc:", train_acc)
 print("depth is", depth)
 model = ViT(depth=depth, use_emitter=use_emitter, n_classes=checkpoint['num_of_classes'])
 model = nn.DataParallel(model)
@@ -48,11 +55,7 @@ print("classes:", checkpoint["classes"])
 y_true = []
 y_pred = []
 
-counter = 0
-
 for inputs, emitters, labels in tqdm.tqdm(train_loader):
-    # if counter == 3:
-    #     break
     inputs = inputs.to(device)
     emitters = emitters.to(device)
     labels = labels.to(device)
@@ -60,29 +63,24 @@ for inputs, emitters, labels in tqdm.tqdm(train_loader):
     _, preds = torch.max(outputs, 1)
     y_true += list(labels)
     y_pred += list(preds)
-    counter += 1
-
 
 y_true = [y.to("cpu") for y in y_true]
 y_pred = [y.to("cpu") for y in y_pred]
 
 c = 0
-print("y_pred:")
-print(y_pred)
-print("y_true:")
-print(y_true)
 
 for i in range(len(y_true)):
     if y_pred[i] == y_true[i]:
         c += 1
 
-print(c/len(y_true))
-
+print("test accuracy:", c / len(y_true))
 
 cm = confusion_matrix(y_true, y_pred)
 # cm = cm / cm.sum(axis=1)[:, None]
-print(cm.shape)
-print(cm)
+
 disp = ConfusionMatrixDisplay(confusion_matrix=cm, display_labels=checkpoint["classes"])
 disp.plot()
 plt.show()
+
+print("classification report:")
+print(classification_report(y_true, y_pred, target_names=checkpoint["classes"]))
