@@ -9,35 +9,15 @@ completed = 0
 SELECTED_TREATMENTS = [9, 10, 16, 17, 18, 19, 20]
 ADDRESSEE_SAMPLE_THRESHOLD = 1000
 
-
-def agg_cols(columns):
-    result = []
-    for column in columns:
-        val = str(column)
-        if val != "nan":
-            result.append(int(column))
-
-    return result
-
-
-def intersect(columns):
-    return list(filter(lambda x: columns["Start sample"] <= x <= columns["End sample"], columns["segments"]))
-
-
 # ------ JOIN ------
 annots_df = pd.read_csv(ANNOT_PATH)
 file_info_df = pd.read_csv(FILE_INFO_PATH, names=[i for i in range(332)], low_memory=False)
 
 file_info_df = file_info_df.loc[1:]
-segments = file_info_df.iloc[:, 6:].apply(agg_cols, axis=1)
 new_df = file_info_df.iloc[:, :6]
-new_df["segments"] = segments
 new_df[0] = new_df[0].astype('int64')
 joined = new_df.merge(annots_df, left_on=0, right_on="FileID")
-filtered_segments = joined.apply(intersect, axis=1)
-joined["filtered_segments"] = filtered_segments
 # ------ JOIN ------
-
 
 annots_df = joined
 annots_df.rename({1: "Treatment ID", 2: "File name", 4: "Recording channel"}, axis=1, inplace=True)
@@ -55,7 +35,6 @@ counts = annots_df.groupby(["Addressee"]).count().iloc[:, 0]
 bats_ids = list(counts[counts > ADDRESSEE_SAMPLE_THRESHOLD].index)
 annots_df = annots_df[annots_df["Addressee"].isin(bats_ids)]
 # ------ FILTERS ------
-
 
 annots_df = annots_df[["File name", "Emitter", "Addressee", "Start sample", "End sample", "Recording channel"]]
 annots_df.to_csv("dataset.csv", index=False)
