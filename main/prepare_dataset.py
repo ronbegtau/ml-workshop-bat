@@ -25,6 +25,8 @@ annots_df["Treatment ID"] = annots_df["Treatment ID"].astype("int32")
 annots_df["Addressee"] = annots_df["Addressee"].astype("int32")
 annots_df["Emitter"] = annots_df["Emitter"].astype("int32")
 
+annots_df.to_csv("full_dataset.csv")
+
 # ------ FILTERS ------
 annots_df = annots_df[annots_df["Treatment ID"].isin(SELECTED_TREATMENTS)]  # only colonies
 annots_df = annots_df[annots_df["Addressee"] > 0]  # filter out unknown addressees
